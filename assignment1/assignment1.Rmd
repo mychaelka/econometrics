@@ -1,0 +1,305 @@
+---
+title: "DXE_EMTR Assignment 1"
+author: "Michaela Kecskésová, Martin Kutlak, Filip Emmer"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(background = "pink")
+```
+
+```{r packages, message=FALSE, echo=FALSE}
+library(gganimate)
+library(gifski)
+library(tidyverse)
+library(jpeg)
+library(pacman)
+library(grid)
+library(broom)
+library(gridExtra)
+```
+
+## **1 Regression basics**
+```{r reg_basics, echo=FALSE}
+set.seed(666)
+significant_regressors <- function(y, X, signif_level) {
+  m <- lm(y~X)
+  m_summary <- summary(m)
+  signif <- which(m_summary$coefficients[,4] < signif_level)
+  
+  return(signif)
+}
+
+remove_insignificant <- function(y, X, signif_level) {
+  m <- lm(y~X)
+  signif <- significant_regressors(y, X, signif_level) - 1
+  X_reduced <- X[,signif]
+  
+  return(X_reduced)
+}
+
+
+# Algorithm for steps 1-5
+algorithm <- function(m, n, nsteps = 4) {
+  # m = number of regressors
+  # n = number of observations
+  # return value = number of significant regressors after 5 steps
+  
+  if (nsteps > 4)  {
+    nsteps = 4
+  }
+  
+  y <- rnorm(n, 0, 1)
+  X <- replicate(m, rnorm(n, 0, 1))
+  alpha <- c(0.5, 0.25, 0.1, 0.05)
+  
+  for (i in 1:nsteps) {
+    X <- remove_insignificant(y, X, alpha[i])
+  }
+  
+  return(ncol(X))
+}
+
+
+# Simulation
+simulation <- function(n, nsteps) {
+  num_signif <- c()
+  
+  for (i in 1:n) {
+    num_signif[i] <- algorithm(200, 1000, nsteps)
+  }
+  
+  return(num_signif)
+}
+
+number_signif_histogram <- function(nsteps = 4) {
+  num_signif <- simulation(1000, nsteps)
+  data <- data.frame(num_signif)
+  
+  p <- ggplot(data, aes(num_signif)) +
+    theme_bw() +
+    geom_histogram(aes(y = ..density..), bins = 15, col = "black", alpha = 0.7,
+                   fill = "navyblue") +
+    geom_density(col = "red", lwd = 1.5) +
+    labs(x = "Number of significant regressors", y = "Density", title = sprintf("Steps: %s", nsteps+1)) +
+    theme(text = element_text(size = 16, family = "Times"))
+  
+  return(p)
+}
+```
+
+```{r reg_basics_reduced, eval=FALSE}
+significant_regressors <- function(y, X, signif_level) {
+  # returns a vector of significant regressor indices
+}
+
+remove_insignificant <- function(y, X, signif_level) {
+  # removes insignificant regressors from X matrix
+  # based on lm(y~X) and given significance level
+}
+
+algorithm <- function(m, n, nsteps = 4) {
+  # Algorithm for steps 1-5 (possibly less)
+  # returns  number of significant regressors after nsteps
+}
+
+simulation <- function(n, nsteps) {
+  # Applies the algorithm to randomly generated data
+}
+
+number_signif_histogram <- function(nsteps = 4) {
+  # Draws histogram of no. significant regressors for
+  # nsteps of algorithm
+}
+```
+
+**Task**: How many regressors are significant at level 0.05 in step 5?
+```{r signif_regressors}
+num_signif <- simulation(1, 4)
+num_signif
+```
+
+**Task**: Repeat this process many times (e.g. 1000) and plot the distributions of the number of significant regressors in Step 5.
+```{r distribution_signif}
+number_signif_histogram(4)
+```
+
+**Task**: Explain your findings.
+
+Our findings are in line with results of Freedman’s simulations (1983).  We fit his assumptions - there is by definition no relationship between our variables and the number of our randomly generated variables is (roughly) comparable to number of Freedman's data points.  
+Our $R^2$ is high simply because we have put many explantory variables into the model and a relatively large number of variables have passed the 0.5 $p$-value threshold from Step 2.
+
+When we exclude variables which have $p$-value > 0.5, we lose some of the explained variance of the model purely by composition of $R^2$ (even in our case, when our model is filled only by random noise), so $R^2$ will have slightly lower value. More interestingly, the structure and number of significant variables also changes. More variables now have higher statistical significance than before the $p$-value cutoff. This may be caused by the fact that regressors may be (even if weakly) correlated and excluding one variable can result in rise in significance of the other. 
+
+Similarly, when we repeat the whole procedure for steps 3-5, $R^2$ will get lower, number of variables will be lower, but their significance is rising. However, their significance is biased by previous steps, which were taken in order to adjust the whole model. 
+
+**Lessons to take:**
+
+1. In linear regression model, less regressors sometimes means more credible results. Just adding too many regressors may lead to high $R^2$ but also to multicollinearity and misleading results.
+2. It is also important to determine the main purpose of the model. If it is an explanatory model, then the $p$-value of a variable may not be the reason for excluding the variable, when we are sure that there is some economic theory behind the connection of dependent and explanatory variable. However, if we want to use the model for prediction, then we may be interested in putting as much valuable variables as possible to obtain strong predictive power of the model. 
+3. Creating model by $p$-value cutting is not in line with causal inference process, because it eventually leads to a model with statistically significant regressors, but such model might not reflect the real life relationship between variables. 
+
+**Task**: Compare the distributions of the numbers of significant regressors. 
+In different steps of the algorithm number of significant regressors is
+higher with fewer steps, distribution seems to be normal in each case.
+
+```{r signif_regressors_distr}
+# Distributions of the numbers of significant regressors in
+# different steps
+p1 <- number_signif_histogram(1)
+p2 <- number_signif_histogram(2)
+p3 <- number_signif_histogram(3)
+p4 <- number_signif_histogram(4)
+grid.arrange(p1, p2, p3, p4, ncol=2, nrow=2)
+
+```
+
+## **2 Maximum likelihood**
+We have $y_i \sim Bin(n_i, p_i)$ and $\text{ln}(\frac{p_i}{1-p_i}) = \beta_0 + \beta_1x_{i1}+\dots+\beta_px_{ip}$.
+
+
+Marginal probability mass function:
+$$P(Y_i=y_i) = {n_i \choose y_i} p_i^{y_i}(1-p_i)^{n_i-y_i} $$
+$$p_i = \frac{e^{\theta_i}}{1+e^{\theta_i}}, \quad \theta_i = \text{ln}\biggl(\frac{p_i}{1-p_i}\biggr) = \beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}$$
+
+Joint probability mass function:
+$$f(y_i \space | \space n_i, p_i) = \prod_{i=1}^n{n_i \choose y_i}p_i^{y_i}(1-p_i)^{n_i-y_i}$$
+substitute $p_i$ for $\frac{e^{\theta_i}}{1+e^{\theta_i}}$:
+
+$$ = \prod_{i=1}^n{n_i \choose y_i} \biggl[\frac{e^{\theta_i}}{1+e^{\theta_i}}\biggr]^{y_i}\biggl[1-\frac{e^{\theta_i}}{1+e^{\theta_i}}\biggr]^{n_i-y_i}$$
+Likelihood function:
+
+$$L(\hat{\beta} \space | \space y_i, x_i, n_i) = \prod_{i=1}^n{n_i \choose y_i} \biggl[\frac{e^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}}}{1+e^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}}}\biggr]^{y_i}\biggl[1-\frac{e^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}}}{1+e^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}}}\biggr]^{n_i-y_i}$$
+
+Log likelihood:
+
+$$l(\hat{\beta}\space | \space y_i, x_i, n_i) = \text{ln}(L(\hat{\beta}\space | \space y_i, x_i, n_i))$$
+$$ = \sum_{i=1}^n \text{ln}\Biggl[{n_i \choose y_i} \biggl[\frac{\text{e}^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}}}{1+\text{e}^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}}}\biggr]^{y_i}\biggl[1-\frac{\text{e}^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}}}{1+\text{e}^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}}}\biggr]^{n_i-y_i}\Biggr]$$
+$$ = \sum_{i=1}^n\Biggl[\text{ln}{n_i \choose y_i} + y_i\Bigl(\text{ln}(e^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}}) - \text{ln}(1 + \text{e}^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}})\Bigr) + (n_i-y_i)\Bigl(\text{ln}(1) - \text{ln}(1 + \text{e}^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}})\Bigr)\Biggr]$$
+$$ = \sum_{i=1}^n\Biggl[\text{ln}{n_i \choose y_i} +  y_i(\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}) - n_i\cdot\text{ln}(1 + \text{e}^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}})\Biggr]$$
+$$ = \sum_{i=1}^n\text{ln}{n_i \choose y_i} + y_i \theta_i - n_i \text{ln}(1+e^{\theta_i}) $$
+
+Score function:
+$$S(\hat{\beta}) = \frac{\partial{}}{\partial{\hat{\beta}}}l(\hat{\beta} \space | \space y_i, x_i, n_i) = \sum_{i=1}^n\biggl(y_i + \frac{n_i\theta_i}{1+\text{e}^{\theta_i}}\biggr)$$
+$$ = \sum_{i=1}^n\biggl(y_i + \frac{n_i(\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip})}{1+\text{e}^{\beta_0 + \beta_1x_{i1} + \ldots + \beta_px_{ip}}}\biggr)$$
+
+```{r animation, echo=FALSE}
+set.seed(44)
+bet <- c()
+
+k <- 2^seq(0,7,by=1)
+n <- 1
+C <- data.frame(matrix(NA, nrow = 10*k[8], ncol = 8))
+
+for (j in k) {
+  for (i in 1:(10*j)){
+    y <- rbinom(100, size=1, prob=0.2)
+    x <- rnorm(100)
+    
+    model <- glm(y ~ x, family = 'binomial')
+    bet[i] <- model$coefficients[2]
+  }
+  C[1:i,n] <- bet
+  bet <- c()
+  n <- n+1
+}
+
+
+names(C) <- c(10*k)
+X <- stack(C)
+X <- na.omit(X)
+
+img <- readJPEG("meme.jpg", native = FALSE)
+
+p <- ggplot(X, aes(x=values)) +
+  annotation_custom(rasterGrob(img,
+                               width = unit(1,"npc"),
+                               height = unit(1,"npc")),
+                    -Inf, Inf, -Inf, Inf) +
+  theme_bw() +
+  geom_histogram(binwidth=0.1, col = "black", alpha = 0.8,
+                 fill = "pink") +
+  scale_y_continuous(expand = expansion(mult = c(0.17, 0.1))) +
+  transition_states(ind, wrap = F) +
+  labs(title = 'Number of iterations: {closest_state}', x = "Value", y = "Count") +
+  theme(text = element_text(size = 16, family = "Times")) +
+  view_follow()
+```
+
+To demonstrate that the maximum likelihood estimator of $\beta_1$ for this model has asymptotically normal distribution, we created the following animated histogram (whole simulation study can be found in the original $\texttt{R}$ code):
+
+```{r animation2}
+animate(p, fps = 25, duration = 20, end_pause = 100, renderer = gifski_renderer())
+```
+
+How does the sample size affect the variance of the estimator?
+```{r sample_size_variance, echo=FALSE}
+sample_size <- 15
+vars <- c()
+size <- c()
+m <- 1
+
+for (i in 1:10) {
+  y <- rbinom(sample_size, size=1, prob=0.2)
+  x <- rnorm(sample_size)
+  
+  model <- glm(y ~ x, family = 'binomial')
+  vars[m] <- (summary(model)$coef[2,2])^2
+  size[m] <- sample_size
+  sample_size = round(sample_size * 1.5)
+  m = m + 1
+}
+
+data <- data.frame(size, vars)
+data %>% ggplot(aes(x = size, y = vars)) +
+  geom_point(size = 3, col = "navyblue") +
+  geom_line(size = 0.1) +
+  theme_bw() +
+  labs(x = "Sample size", y = "Estimator variance") +
+  theme(text = element_text(size = 16, family = "Times"))
+```
+
+We can see that the estimator variance decreases with bigger sample size. This is in line with theoretical predictions and the law of large numbers.
+
+## **3 Bootstrap**
+```{r bootstrap, echo=FALSE}
+set.seed(55)
+confint_bootstrap <- function(nb, x, y, model) {
+  n = length(x)
+  result = NULL
+  ptm <- proc.time()
+  
+  for (i in 1:nb) {
+    rand_indices = sample(c(1:n), n, replace = T)
+    
+    m1 <- glm(y[rand_indices] ~ x[rand_indices], family = 'binomial')
+    suppressMessages(conf <- confint(m1, 2, 0.95))
+    result[i] <- conf[1] < summary(model)$coefficients[2,1] & 
+      summary(model)$coefficients[2,1] < conf[2]
+  }
+  proc.time() - ptm
+  
+  return(sum(result)/nb)
+  
+}
+```
+
+**Task**: Construct a 95% confidence interval based on the non-parametric percentile bootstrap and using a simulation, show that the confidence intervals cover the true value in approximately 95% of simulated cases.
+```{r bootstrap_prototype, eval=FALSE}
+confint_bootstrap <- function(nb, x, y, model) {
+# Constructs a 95% confidence interval based on nonparametric bootstrap
+# Does this nb-times as a simulation
+# Returns the percentage of cases in which the CI covers the true value 
+  }
+```
+
+```{r confint}
+nb = 5000
+confidence <- confint_bootstrap(nb, x, y, model)
+confidence
+```
