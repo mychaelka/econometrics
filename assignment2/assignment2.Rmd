@@ -1,0 +1,185 @@
+---
+title: | 
+       | DXE_EMTR Assignment 2 
+       | $\scriptsize \color{blue}{\text{"It's}}$ $\scriptsize \color{red}{\text{colorful}}$ $\scriptsize \color{limegreen}{\text{to}}$ $\scriptsize \color{violet}{\text{make}}$ $\scriptsize \color{orange}{\text{it}}$ $\scriptsize \color{SkyBlue}{\text{fun"}} \tiny \text{-- L. Lafférs, 10.11.2022, 14:43, MT205}$
+author: "F. Emmer, M. Kutlak, M. Kecskésová"
+date: "2022-12-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages, message=FALSE, echo=FALSE}
+library(dagitty)
+library(ggdag)
+```
+
+## **1 Causal graphical models**
+We are interested in quantifying the effect of discrimination on wages. Assume that gender influences the
+discrimination but has no direct impact on both occupation and wages. Furthermore, we assume that disc-
+rimination influences both occupation and wages. Occupation also have a direct effect on wages. Also,
+unobserved ability influences both occupation and wages.  
+  
+**Task**: Plot the causal graph.  
+```{r dags, echo=FALSE}
+G1 = dagitty('dag{
+W [outcome, pos="2,0"]
+D [exposure, pos="1,1"]
+A [unobserved, pos="1, -1"]
+G [pos="1, 3"]
+O [pos="0, 0"]
+G -> D
+D -> O
+D -> W
+A -> O
+A -> W            
+O -> W}')
+
+ggdag(G1) + theme_dag() #plotting the causal graph 
+```
+
+**Task**: List all the causal and non-causal paths from discrimination to wages.  
+```{r dags1}
+paths(G1, 
+      from = exposures(G1),
+      to = outcomes(G1))
+```
+
+-- The causal paths in this case are D -> O -> W and D -> W.  
+
+**Task**: Determine if it is possible to identify the causal effect of discrimination on wages based on observed probability distribution of gender, discrimination, occupation and wages.  
+-- There are no testable implications due to both direct and indirect effect of discrimination on wages.
+
+**Task**: Discuss the pros and cons of adjusting for the occupation.  
+-- After adjusting for occupation, the path D -> W (the direct effect
+ of discrimination on wages) would stay open, however, we would block the indirect path going 
+ through occupation, so the resulting effect could be lower. Moreover, occupation
+ is a collider variable between discrimination and the unobserved ability,
+ so controlling for it opens the path between discrimination, ability and 
+ wages and a spurious effect between D and W through A may emerge.  
+ 
+ *Now assume that some occupations are preferred by different genders and that there is a direct link from gender to occupation.*  
+ 
+**Task**: Plot the causal graph.  
+```{r dags2, echo=FALSE}
+G2 = dagitty('dag{
+W [outcome, pos="2,0"]
+D [exposure, pos="1,1"]
+A [unobserved, pos="1, -1"]
+G [pos="1, 3"]
+O [pos="0, 0"]
+G -> D
+G -> O
+D -> O
+D -> W
+A -> O
+A -> W            
+O -> W}')
+
+ggdag(G2) + theme_dag() #plotting the causal graph 
+```
+
+**Task**: List all the causal and non-causal paths from discrimination to wages.  
+```{r dags3}
+paths(G2, 
+      from = exposures(G2),
+      to = outcomes(G2))
+```
+
+-- The causal paths in this case are D -> O -> W, D -> W and D <- G -> O -> W.  
+
+**Task**: Determine if it is possible to identify the causal effect of discrimination on wages based on observed
+probability distribution of gender, discrimination, occupation and wages.  
+-- There are again no testable implications due to both direct and indirect effect of discrimination on wages.
+
+**Task**: Discuss the pros and cons of adjusting for the occupation and/or gender.  
+**1. adjusting only for occupation:** Same as the previous case, but on top of that a new causal path emerges between gender and wages through ability. The effect of gender on wages possibly also changes due to opening the path between G and W through O and D, as O is also a collider between G and D.  
+**2. adjusting only for gender:** Gender influences the indirect path between D and W through O as a confounder influencing D and O. To recover the original indirect path, it is necessary to adjust for gender. 
+<!--Adjusting for gender also changes the direct effect of D on W, in case there is an interaction of gender discrimination and other types of discrimination.-->  
+**3. adjusting for both occupation and gender:** Adjusting for both gender and occupation closes the indirect path between D and W through O and opens the path between D and W through O and unobserved A. 
+
+*Now furthermore assume that we have a good proxy variable for ability (e.g. composite IQ and EQ score), so that ability is now observed.*
+
+**Task**: Plot the causal graph.  
+```{r dags4, echo=FALSE}
+G3 = dagitty('dag{
+W [outcome, pos="2,0"]
+D [exposure, pos="1,1"]
+A [observed, pos="1, -1"]
+G [pos="1, 3"]
+O [pos="0, 0"]
+G -> D
+G -> O
+D -> O
+D -> W
+A -> O
+A -> W            
+O -> W}')
+
+ggdag(G3) + theme_dag() #plotting the causal graph 
+```
+
+**Task**: List all the causal and non-causal paths from discrimination to wages. 
+```{r dags5}
+paths(G3, 
+      from = exposures(G3),
+      to = outcomes(G3))
+```
+
+-- The causal paths in this case are D -> O -> W, D -> W and D <- G -> O -> W.  
+
+**Task**: Determine if it is possible to identify the causal effect of discrimination on wages based on observed
+probability distribution of gender, discrimination, occupation and wages.  
+-- There are again no testable implications due to both direct and indirect effect of discrimination on wages.  
+
+**Task**: Discuss the pros and cons of adjusting for the occupation and/or gender and/or ability.  
+**1. occupation only:** -||-  
+**2. gender only:** -||-  
+**3. ability only:** -||-  
+**4. occupation and gender:** -||-  
+**5. occupation and ability:** Adjusting for occupation could possibly change the effect of G on D by creating a spurious effect (O is a collider). Adjusting for ability  
+**6. gender and ability:** Both direct and indirect effects stay, others are closed  
+**7. all three:** For each G we can find the true direct effect of D on W, indirect effect via O 
+is blocked. All other paths are closed.  
+
+**Task**: Assume that discrimination variable is binary and propose an estimator for (total) average treatment
+effect of discrimination on wages.  
+-- Given that by controlling for occupation and ability, we are able to recover both the direct and indirect effect of discrimination on wages, we propose a linear model with OLS estimator, while controlling for occupation and ability. Logit?????? 
+
+**Task**: Complement your analysis of $G_3$ with a small simulation study. Convince the reader that the estimator
+that you proposed is able to recover the true (total) average treatment effect of discrimination on
+wages. Make any reasonable simplifications in order to illustrate your point.  
+
+```{r estimator}
+set.seed(666)
+gender <- rbinom(1000, 1, 0.5)
+discrimination <- gender + rnorm(1000, 0, 0.2)
+discrimination <- ifelse(discrimination >= 0.2, 1, 0)
+summary(lm(discrimination ~ gender))
+
+ability <- rnorm(1000)
+occupation <- 1.5*gender + discrimination + 2*ability + rnorm(1000, 0, 0.2)
+wages <- 3*ability + 2*discrimination + 6*occupation + rnorm(1000, 0, 0.2)
+
+summary(lm(wages ~ discrimination + gender + ability))
+```
+
+
+<center> $\huge \text{"This is depressing, but that's the situation."}$ </center>
+  
+[$\text{-- L. Lafférs, 10.11.2022, 16:32, MT205}$]{style="float:right"}  
+
+## **2 Selection on Observables**  
+Consider the following hypothetical situation. We have a population of 10 individuals and we happen to know
+both their contrafactual earnings: if they go to job training programme $(D = 1)$ they will receive $Y(1)$. Or if
+they do not participate in the job training programme $(D = 0)$ they will get $Y(0)$. We also have information
+on the different background they have: some individuals come from cities $(X = 1)$ while others from rural
+areas $(X = 0)$.
+
+
+<center> $\huge \text{"You should be laughing by now,}$
+         $\huge \text{but I understand that you're tired."}$ </center>
+  
+[$\text{-- L. Lafférs, 10.11.2022, 17:15, MT205}$]{style="float:right"}  

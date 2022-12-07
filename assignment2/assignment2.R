@@ -148,4 +148,83 @@ occupation <- 1.5*gender + discrimination + 2*ability + rnorm(1000, 0, 0.2)
 wages <- 3*ability + 2*discrimination + 6*occupation + rnorm(1000, 0, 0.2)
 
 summary(lm(wages ~ discrimination + gender + ability))
+
+# TASK NO.2
+
+dat <- matrix(c(20,19,1,1,
+                23,21,1,1,
+                36,20,0,1,
+                43,19,0,1,
+                19,19,0,1,
+                23,55,0,0,
+                26,41,1,0,
+                21,21,1,0,
+                33,37,0,0,
+                16,17,1,0),
+              byrow=T, ncol=4)
+colnames(dat) <- c("Y1","Y0","D","X")
+dat <- as.data.frame(dat)
+
+#1a)
+#ATE = E[Y(1)-Y(0)] 
+
+ATE<-(mean(dat$Y1) - mean(dat$Y0))
+ATE
+# people who attend job training earn less by -0.9 on average
+
+#1b)
+#ATT = E[Y(1)-Y(0) | D=1]
+ATT<-mean(dat$Y1[dat$D==1]) - mean(dat$Y0[dat$D==1])
+ATT
+# people who went through job training would have earned more if they hadn't attended the training
+
+#1c)
+#ATU = E[Y(1)-Y(0) | D=0]
+ATU<-mean(dat$Y1[dat$D==0]) - mean(dat$Y0[dat$D==0])
+ATU
+# people who didn't go through job training would have earned more if they attended the training
+
+#1d)
+#ATT = E[Y(1)-Y(0) | D=1, X=1]
+ATT1 <-mean(dat$Y1[dat$D==1 & dat$X == 1]) - mean(dat$Y0[dat$D==1 & dat$X == 1])
+ATT1
+# sign is different than general ATT
+
+#1e)
+#ATT = E[Y(1)-Y(0) | D=1, X=0]
+ATT2 <-mean(dat$Y1[dat$D==1 & dat$X == 0]) - mean(dat$Y0[dat$D==1 & dat$X == 0])
+ATT2
+# effect is higher in absolute value than general ATT
+
+# 1f)
+dat_intervention <- dat
+dat_intervention$D <- ifelse(dat_intervention$Y1 >= dat_intervention$Y0, 1, 0)
+
+ATE1 <-(mean(dat_intervention$Y1) - mean(dat_intervention$Y0))
+ATE1
+
+# first select the true realized Y's
+true_y <- ifelse(dat$D ==1, dat$Y1, dat$Y0)
+
+# y's after intervention
+true_y1 <- ifelse(dat_intervention$D ==1, dat_intervention$Y1, dat_intervention$Y0)
+
+mean(true_y) - mean(true_y1)
+
+#2a)
+mean(dat$Y1[dat$D == 1]) - mean(dat$Y0[dat$D == 0])
+
+#2b)
+selection_bias <- mean(dat$Y0[dat$D == 1]) - mean(dat$Y0[dat$D == 0])
+mean(dat$Y1[dat$D == 1]) - mean(dat$Y0[dat$D == 0]) == ATT + selection_bias
+
+#2c)
+prob_D0 <- length(dat$D[dat$D == 0])/length(dat$D)
+left <- mean(dat$Y1[dat$D == 1]) - mean(dat$Y0[dat$D == 0])
+right <- round((ATE + selection_bias + prob_D0*(ATT - ATU)),1)  # float imprecision
+left == right
+
+#2d)
+
+  
 "... it ain't much but it's honest work. :X"
