@@ -1,7 +1,10 @@
-##### 1 Causal graphical methods #####
 library(dagitty)
 library(ggdag)
+library(viridis)
+library(tidyverse)
+library(AER)
 
+###### TASK 1
 # a)
 G1 = dagitty('dag{
 W [outcome, pos="2,0"]
@@ -16,32 +19,40 @@ A -> O
 A -> W            
 O -> W}')
 
-ggdag(G1) + theme_dag() #plotting the causal graph 
+tidy_dag <- tidy_dagitty(G1) %>% 
+  dplyr::mutate(VariableType = ifelse(name == "A", "Unobserved", 
+                                      ifelse(name == "W", "Outcome", "Observed")))
 
-#### listing all paths ####
+tidy_dag %>% ggplot(aes(x = x, 
+                        y = y,
+                        xend = xend,
+                        yend = yend)) +
+  geom_dag_point(aes(colour = VariableType)) +
+  scale_color_manual(values = c("darkblue", "darkred", "grey")) +
+  geom_dag_edges() +
+  geom_dag_text() +
+  theme_dag()
+
+# list all paths
 paths(G1, 
       from = exposures(G1),
       to = outcomes(G1))
 
-# paths "D -> O -> W" and "D -> W" are open (d-connected) -- causal
-# path "D -> O <- A -> W" is closed -- non-causal
+ggdag_paths(G1, shadow = TRUE) + theme_dag() + 
+  theme(legend.position = "none", strip.text = element_blank()) +
+  scale_color_manual(values = "darkblue") + 
+  scale_fill_manual(values = "darkblue") + 
+  ggraph::scale_edge_color_manual(values = "darkblue") +
+  ggtitle("Open paths from discrimination to wages")
 
 # Determine if it is possible to identify the causal effect of discrimination on 
 # wages based on observed probability distribution of gender, discrimination, 
 # occupation and wages.
+adjustmentSets(G1)
 
-# There are no testable implications due to both direct and indirect effect of
-# discrimination on wages.
-
-# Discuss the pros and cons of adjusting for the occupation.
-
-# After adjusting for occupation, we would be able to recover the direct effect
-# of discrimination on wages, however, we would block the indirect path going 
-# through occupation, so the resulting effect would be lower. Moreover, occupation
-# can be considered a collider between discrimination and unobserved ability,
-# so controlling for it opens the path between discrimination, ability and 
-# wages and a spurious effect between D and W through A may emerge.
-
+ggdag_adjustment_set(tidy_dag, node_size = 14, shadow = TRUE) +
+  scale_color_manual(values = c("darkblue", "darkred", "grey")) +
+  theme_dag()
 
 # b)
 G2 = dagitty('dag{
@@ -58,44 +69,47 @@ A -> O
 A -> W            
 O -> W}')
 
-ggdag(G2) + theme_dag() #plotting the causal graph 
+tidy_dag <- tidy_dagitty(G2) %>% 
+  dplyr::mutate(VariableType = ifelse(name == "A", "Unobserved", 
+                                      ifelse(name == "W", "Outcome", "Observed")))
 
+tidy_dag %>% ggplot(aes(x = x, 
+                        y = y,
+                        xend = xend,
+                        yend = yend)) +
+  geom_dag_point(aes(colour = VariableType)) +
+  scale_color_manual(values = c("darkblue", "darkred", "grey")) +
+  geom_dag_edges() +
+  geom_dag_text() +
+  theme_dag()
+
+# list all paths 
 paths(G2, 
       from = exposures(G2),
       to = outcomes(G2))
 
-# paths "D -> O -> W", "D <- G -> O -> W" and "D -> W" are open (d-connected) -- causal
-# paths "D -> O <- A -> W" and "D <- G -> O <- A -> W"
-# are closed -- non-causal
+ggdag_paths(G2, shadow = TRUE) + theme_dag() + 
+  theme(legend.position = "none", strip.text = element_blank()) +
+  scale_color_manual(values = "darkblue") + 
+  scale_fill_manual(values = "darkblue") + 
+  ggraph::scale_edge_color_manual(values = "darkblue") +
+  ggtitle("Open paths from discrimination to wages")
 
 
 # Determine if it is possible to identify the causal effect of discrimination on 
 # wages based on observed probability distribution of gender, discrimination, 
 # occupation and wages.
+adjustmentSets(G2)
 
-# There are no testable implications due to both direct and indirect effect of
-# discrimination on wages.
-
-# 1. adjusting only for occupation
-# same as before + new causal path emerges between gender and wages through
-# ability and possibly the effect of gender on wages increases due to opening 
-# the path between G and W through O and D.
-# 2. adjusting only for gender
-# Gender influences the indirect path between D and W through O as a confounder,
-# to recover the original indirect path, it is necessary to adjust for gender.
-# also changes the effect of D on W (interaction of gender discrimination and others)
-# 3. adjusting for both occupation and gender
-# adjusting for gender and occupation changes the effect of D on W, closes the
-# indirect path between D and W through O and opens the path between D and W through
-# collider O and unobserved A.
-# it's depressing, but that's the situation
-
+ggdag_adjustment_set(tidy_dag, node_size = 14, shadow = TRUE) +
+  scale_color_manual(values = c("darkblue", "darkred", "grey")) +
+  theme_dag()
 
 # c)
 G3 = dagitty('dag{
 W [outcome, pos="2,0"]
 D [exposure, pos="1,1"]
-A [observed, pos="1, -1"]
+A [pos="1, -1"]
 G [pos="1, 3"]
 O [pos="0, 0"]
 G -> D
@@ -106,32 +120,38 @@ A -> O
 A -> W            
 O -> W}')
 
-ggdag(G3) + theme_dag() #plotting the causal graph 
+tidy_dag <- tidy_dagitty(G3) %>% 
+  dplyr::mutate(VariableType = ifelse(name == "W", "Outcome", "Observed"))
 
+tidy_dag %>% ggplot(aes(x = x, 
+                        y = y,
+                        xend = xend,
+                        yend = yend)) +
+  geom_dag_point(aes(colour = VariableType)) +
+  scale_color_manual(values = c("darkblue", "darkred", "grey")) +
+  geom_dag_edges() +
+  geom_dag_text() +
+  theme_dag()
+
+# list all the paths
 paths(G3, 
       from = exposures(G3),
       to = outcomes(G3))
 
-# Determine if it is possible to identify the causal effect of discrimination on wages based on observed
-# probability distribution of gender, discrimination, occupation and wages.
-# SAME AS BEFORE
+ggdag_paths(G3, shadow = TRUE) + theme_dag() + 
+  theme(legend.position = "none", strip.text = element_blank()) +
+  scale_color_manual(values = "darkblue") + 
+  scale_fill_manual(values = "darkblue") + 
+  ggraph::scale_edge_color_manual(values = "darkblue") +
+  ggtitle("Open paths from discrimination to wages")
 
-# 1. occupation only
-# -||-
-# 2. gender only
-# -||-
-# 3. ability only
-# -||-
-# 4. occupation and gender
-# -||-
-# 5. occupation and ability
-# possibly changes effect of G on D and therefore the effect of D on W
-# 6. gender and ability
-# both direct and indirect effects stay, othres are closed
-# 7. all three
-# for each G we can find the true direct effect of D on W, indirect effect via O 
-# is blocked. All other paths are closed.
 
+adjustmentSets(G3, exposure = "D", outcome = "W", type="all")
+
+ggdag_adjustment_set(tidy_dag, node_size = 14, effect="total", type="all",
+                     shadow = TRUE) +
+  scale_color_manual(values = c("darkblue", "darkred", "grey")) +
+  theme_dag()
 
 # Assume that discrimination variable is binary and propose an estimator for (total) average treatment
 # effect of discrimination on wages
@@ -149,7 +169,9 @@ wages <- 3*ability + 2*discrimination + 6*occupation + rnorm(1000, 0, 0.2)
 
 summary(lm(wages ~ discrimination + gender + ability))
 
-# TASK NO.2
+
+###### TASK 2
+############## PART 1 ##############
 
 dat <- matrix(c(20,19,1,1,
                 23,21,1,1,
@@ -165,52 +187,44 @@ dat <- matrix(c(20,19,1,1,
 colnames(dat) <- c("Y1","Y0","D","X")
 dat <- as.data.frame(dat)
 
-#1a)
+#a)
 #ATE = E[Y(1)-Y(0)] 
-
-ATE<-(mean(dat$Y1) - mean(dat$Y0))
+ATE <- mean(dat$Y1) - mean(dat$Y0)
 ATE
-# people who attend job training earn less by -0.9 on average
 
-#1b)
+#b)
 #ATT = E[Y(1)-Y(0) | D=1]
-ATT<-mean(dat$Y1[dat$D==1]) - mean(dat$Y0[dat$D==1])
+ATT <- mean(dat$Y1[dat$D==1]) - mean(dat$Y0[dat$D==1])
 ATT
-# people who went through job training would have earned more if they hadn't attended the training
 
-#1c)
+#c)
 #ATU = E[Y(1)-Y(0) | D=0]
-ATU<-mean(dat$Y1[dat$D==0]) - mean(dat$Y0[dat$D==0])
+ATU <- mean(dat$Y1[dat$D==0]) - mean(dat$Y0[dat$D==0])
 ATU
-# people who didn't go through job training would have earned more if they attended the training
 
-#1d)
+#d)
 #ATT = E[Y(1)-Y(0) | D=1, X=1]
-ATT1 <-mean(dat$Y1[dat$D==1 & dat$X == 1]) - mean(dat$Y0[dat$D==1 & dat$X == 1])
+ATT1 <- mean(dat$Y1[dat$D==1 & dat$X == 1]) - mean(dat$Y0[dat$D==1 & dat$X == 1])
 ATT1
-# sign is different than general ATT
 
-#1e)
+#e)
 #ATT = E[Y(1)-Y(0) | D=1, X=0]
-ATT2 <-mean(dat$Y1[dat$D==1 & dat$X == 0]) - mean(dat$Y0[dat$D==1 & dat$X == 0])
+ATT2 <- mean(dat$Y1[dat$D==1 & dat$X == 0]) - mean(dat$Y0[dat$D==1 & dat$X == 0])
 ATT2
-# effect is higher in absolute value than general ATT
 
-# 1f)
+#f)
 dat_intervention <- dat
 dat_intervention$D <- ifelse(dat_intervention$Y1 >= dat_intervention$Y0, 1, 0)
 
-ATE1 <-(mean(dat_intervention$Y1) - mean(dat_intervention$Y0))
-ATE1
-
 # first select the true realized Y's
-true_y <- ifelse(dat$D ==1, dat$Y1, dat$Y0)
+true_y <- ifelse(dat$D == 1, dat$Y1, dat$Y0)
 
-# y's after intervention
+# Y's after intervention
 true_y1 <- ifelse(dat_intervention$D ==1, dat_intervention$Y1, dat_intervention$Y0)
 
 mean(true_y) - mean(true_y1)
 
+############## PART 2 ##############
 #2a)
 mean(dat$Y1[dat$D == 1]) - mean(dat$Y0[dat$D == 0])
 
@@ -225,6 +239,75 @@ right <- round((ATE + selection_bias + prob_D0*(ATT - ATU)),1)  # float imprecis
 left == right
 
 #2d)
+mean(dat$Y0[dat$D == 1 & dat$X == 1]) - mean(dat$Y0[dat$D == 0 & dat$X == 1])
+mean(dat$Y0[dat$D == 1 & dat$X == 0]) - mean(dat$Y0[dat$D == 0 & dat$X == 0])
 
-  
-"... it ain't much but it's honest work. :X"
+############## PART 3 ##############
+# Does compulsory school attendance affect schooling and earnings?
+load("asciiqob.RData")
+
+# Figure 1
+x %>%
+  group_by(year_of_birth, quarter_of_birth) %>%
+  summarise(education = mean(education), .groups = "drop") %>%
+  mutate(xcoord = year_of_birth + 0.25*(quarter_of_birth-1)) %>%
+  ggplot(aes(x = xcoord, y = education)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_text(aes(label = quarter_of_birth), nudge_y = -0.04) +
+  scale_x_continuous("Year of birth") +
+  scale_y_continuous("Years of education") +
+  theme_bw()
+
+# two-period, two-sided moving average, MA(+2,-2)
+# for the cohort of men born in year c and quarter j
+# MA_cj = (E 2+ E-1 + E+1 + E+2) / 4
+library(zoo)
+
+x1 <- x %>%
+  group_by(year_of_birth, quarter_of_birth) %>%
+  summarise(education = mean(education), .groups = "drop")
+
+x.ma <- rollmean(x1$education, 3, fill = NA, align = "right")
+
+# The "detrended" education series is simply E - MA
+# Figure 4
+x %>%
+  group_by(year_of_birth, quarter_of_birth) %>%
+  summarise(education = mean(education), .groups = "drop") %>%
+  mutate(xcoord = year_of_birth + 0.25*(quarter_of_birth-1), ma = x.ma) %>%
+  ggplot(aes(x = xcoord, y = education - ma)) +
+  geom_line(aes(y=0)) +
+  labs(fill = "Quarter of birth") +
+  geom_col(aes(fill = factor(quarter_of_birth))) +
+  geom_text(aes(label = quarter_of_birth), nudge_y = 0.01,) +
+  scale_x_continuous("Year of birth") +
+  scale_y_continuous("Schooling differential", limits = c(-0.2, 0.2)) +
+  theme_bw()
+
+# Table 1
+x$quarter_of_birth1 <- relevel(factor(x$quarter_of_birth), ref = 4)
+mean(x$education)
+summary(lm(education ~ factor(quarter_of_birth), x))
+
+# Figure 5
+x %>%
+  group_by(year_of_birth, quarter_of_birth) %>%
+  summarise(log_weekly_wage = mean(log_weekly_wage), .groups = "drop") %>%
+  mutate(xcoord = year_of_birth + 0.25*(quarter_of_birth-1)) %>%
+  ggplot(aes(x = xcoord, y = log_weekly_wage)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_text(aes(label = quarter_of_birth), nudge_y = 0.0015, nudge_x = 0.1) +
+  scale_x_continuous("Year of birth") +
+  scale_y_continuous("Log Weekly Earnings") +
+  theme_bw()
+
+summary(lm(log_weekly_wage ~ factor(quarter_of_birth), x))
+
+# OLS and TSLS Estimates
+iv <- ivreg(log_weekly_wage ~ education + year_of_birth | quarter_of_birth + year_of_birth*quarter_of_birth + year_of_birth, data = x)
+summary(iv)
+
+ols <- lm(log_weekly_wage ~ education + year_of_birth, data = x)
+summary(ols)

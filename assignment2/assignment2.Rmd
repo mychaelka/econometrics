@@ -14,12 +14,14 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r packages, message=FALSE, echo=FALSE}
 library(dagitty)
 library(ggdag)
+library(tidyverse)
+library(zoo)
+library(AER)
 ```
 
-## **1 Causal graphical models**
+## [**1 Causal graphical models**]{style="color:darkblue"}
 We are interested in quantifying the effect of discrimination on wages. Assume that gender influences the
-discrimination but has no direct impact on both occupation and wages. Furthermore, we assume that disc-
-rimination influences both occupation and wages. Occupation also have a direct effect on wages. Also,
+discrimination but has no direct impact on both occupation and wages. Furthermore, we assume that discrimination influences both occupation and wages. Occupation also has a direct effect on wages. Also,
 unobserved ability influences both occupation and wages.  
   
 **Task**: Plot the causal graph.  
@@ -37,22 +39,43 @@ A -> O
 A -> W            
 O -> W}')
 
-ggdag(G1) + theme_dag() #plotting the causal graph 
+tidy_dag <- tidy_dagitty(G1) %>% 
+  dplyr::mutate(VariableType = ifelse(name == "A", "Unobserved", 
+                                      ifelse(name == "W", "Outcome", "Observed")))
+
+tidy_dag %>% ggplot(aes(x = x, 
+                        y = y,
+                        xend = xend,
+                        yend = yend)) +
+  geom_dag_point(aes(colour = VariableType)) +
+  scale_color_manual(values = c("darkblue", "darkred", "grey")) +
+  geom_dag_edges() +
+  geom_dag_text() +
+  theme_dag()
 ```
 
 **Task**: List all the causal and non-causal paths from discrimination to wages.  
-```{r dags1}
-paths(G1, 
-      from = exposures(G1),
-      to = outcomes(G1))
+```{r dags1, echo = FALSE}
+ggdag_paths(G1, shadow = TRUE) + theme_dag() + 
+  theme(legend.position = "none", strip.text = element_blank()) +
+  # set node aesthetics
+  scale_color_manual(values = "darkblue") + 
+  # set label aesthetics
+  scale_fill_manual(values = "darkblue") + 
+  # set arrow aesthetics
+  ggraph::scale_edge_color_manual(values = "darkblue") +
+  ggtitle("Open paths from discrimination to wages")
 ```
 
--- The causal paths in this case are D -> O -> W and D -> W.  
+-- The open paths in this case are D -> O -> W and D -> W.  
 
 **Task**: Determine if it is possible to identify the causal effect of discrimination on wages based on observed probability distribution of gender, discrimination, occupation and wages.  
--- There are no testable implications due to both direct and indirect effect of discrimination on wages.
+```{r controlsets1}
+adjustmentSets(G1)
+```
+-- Only two causal paths from D to W are open, so it is possible to identify the causal effect without adjusting for anything.
 
-**Task**: Discuss the pros and cons of adjusting for the occupation.  
+**Task**: Discuss the pros and cons of adjusting for occupation.  
 -- After adjusting for occupation, the path D -> W (the direct effect
  of discrimination on wages) would stay open, however, we would block the indirect path going 
  through occupation, so the resulting effect could be lower. Moreover, occupation
@@ -78,27 +101,54 @@ A -> O
 A -> W            
 O -> W}')
 
-ggdag(G2) + theme_dag() #plotting the causal graph 
+tidy_dag <- tidy_dagitty(G2) %>% 
+  dplyr::mutate(VariableType = ifelse(name == "A", "Unobserved", 
+                                      ifelse(name == "W", "Outcome", "Observed")))
+
+tidy_dag %>% ggplot(aes(x = x, 
+                        y = y,
+                        xend = xend,
+                        yend = yend)) +
+  geom_dag_point(aes(colour = VariableType)) +
+  scale_color_manual(values = c("darkblue", "darkred", "grey")) +
+  geom_dag_edges() +
+  geom_dag_text() +
+  theme_dag()
 ```
 
 **Task**: List all the causal and non-causal paths from discrimination to wages.  
-```{r dags3}
-paths(G2, 
-      from = exposures(G2),
-      to = outcomes(G2))
+```{r dags3, echo = FALSE}
+ggdag_paths(G2, shadow = TRUE) + theme_dag() + 
+  theme(legend.position = "none", strip.text = element_blank()) +
+  # set node aesthetics
+  scale_color_manual(values = "darkblue") + 
+  # set label aesthetics
+  scale_fill_manual(values = "darkblue") + 
+  # set arrow aesthetics
+  ggraph::scale_edge_color_manual(values = "darkblue") +
+  ggtitle("Open paths from discrimination to wages")
 ```
 
--- The causal paths in this case are D -> O -> W, D -> W and D <- G -> O -> W.  
+-- The open paths in this case are D -> O -> W, D -> W and D <- G -> O -> W.  
 
 **Task**: Determine if it is possible to identify the causal effect of discrimination on wages based on observed
 probability distribution of gender, discrimination, occupation and wages.  
--- There are again no testable implications due to both direct and indirect effect of discrimination on wages.
+```{r adjust2}
+adjustmentSets(G2)
+```
+-- It is possible to identify the causal effects of discrimination on wages by controlling for gender.
 
 **Task**: Discuss the pros and cons of adjusting for the occupation and/or gender.  
-**1. adjusting only for occupation:** Same as the previous case, but on top of that a new causal path emerges between gender and wages through ability. The effect of gender on wages possibly also changes due to opening the path between G and W through O and D, as O is also a collider between G and D.  
+```{r controls2, echo=FALSE}
+ggdag_adjustment_set(tidy_dag, node_size = 14, shadow = TRUE) +
+  scale_color_manual(values = c("darkblue", "darkred", "grey")) +
+  theme_dag()
+```  
+
+**1. adjusting only for occupation:** Same as the previous case, but on top of that a new spurious path is open between gender and wages through ability. 
 **2. adjusting only for gender:** Gender influences the indirect path between D and W through O as a confounder influencing D and O. To recover the original indirect path, it is necessary to adjust for gender. 
 <!--Adjusting for gender also changes the direct effect of D on W, in case there is an interaction of gender discrimination and other types of discrimination.-->  
-**3. adjusting for both occupation and gender:** Adjusting for both gender and occupation closes the indirect path between D and W through O and opens the path between D and W through O and unobserved A. 
+**3. adjusting for both occupation and gender:** Adjusting for both gender and occupation closes the indirect path between D and W through O and opens the non-causal path between D and W through O and unobserved A. 
 
 *Now furthermore assume that we have a good proxy variable for ability (e.g. composite IQ and EQ score), so that ability is now observed.*
 
@@ -118,68 +168,386 @@ A -> O
 A -> W            
 O -> W}')
 
-ggdag(G3) + theme_dag() #plotting the causal graph 
+tidy_dag <- tidy_dagitty(G3) %>% 
+  dplyr::mutate(VariableType = ifelse(name == "W", "Outcome", "Observed"))
+
+tidy_dag %>% ggplot(aes(x = x, 
+                        y = y,
+                        xend = xend,
+                        yend = yend)) +
+  geom_dag_point(aes(colour = VariableType)) +
+  scale_color_manual(values = c("darkblue", "darkred", "grey")) +
+  geom_dag_edges() +
+  geom_dag_text() +
+  theme_dag()
 ```
 
 **Task**: List all the causal and non-causal paths from discrimination to wages. 
-```{r dags5}
-paths(G3, 
-      from = exposures(G3),
-      to = outcomes(G3))
+```{r dags5, echo=FALSE}
+ggdag_paths(G3, shadow = TRUE) + theme_dag() + 
+  theme(legend.position = "none", strip.text = element_blank()) +
+  # set node aesthetics
+  scale_color_manual(values = "darkblue") + 
+  # set label aesthetics
+  scale_fill_manual(values = "darkblue") + 
+  # set arrow aesthetics
+  ggraph::scale_edge_color_manual(values = "darkblue") +
+  ggtitle("Open paths from discrimination to wages")
 ```
 
--- The causal paths in this case are D -> O -> W, D -> W and D <- G -> O -> W.  
+-- The open paths in this case are D -> O -> W, D -> W and D <- G -> O -> W.  
 
 **Task**: Determine if it is possible to identify the causal effect of discrimination on wages based on observed
 probability distribution of gender, discrimination, occupation and wages.  
--- There are again no testable implications due to both direct and indirect effect of discrimination on wages.  
+```{r adjust3}
+adjustmentSets(G3, exposure = "D", outcome = "W", type="all")
+```  
 
-**Task**: Discuss the pros and cons of adjusting for the occupation and/or gender and/or ability.  
+-- It is possible to identify the causal effects of discrimination on wages by controlling for gender or for gender and ability.
+
+**Task**: Discuss the pros and cons of adjusting for the occupation and/or gender and/or ability. 
+```{r controls3, echo=FALSE}
+ggdag_adjustment_set(tidy_dag, node_size = 14, effect="total", type="all",
+                     shadow = TRUE) +
+  scale_color_manual(values = c("darkblue", "darkred", "grey")) +
+  theme_dag()
+```  
+
 **1. occupation only:** -||-  
 **2. gender only:** -||-  
-**3. ability only:** -||-  
-**4. occupation and gender:** -||-  
-**5. occupation and ability:** Adjusting for occupation could possibly change the effect of G on D by creating a spurious effect (O is a collider). Adjusting for ability  
-**6. gender and ability:** Both direct and indirect effects stay, others are closed  
-**7. all three:** For each G we can find the true direct effect of D on W, indirect effect via O 
-is blocked. All other paths are closed.  
+**3. ability only:** Adjusting only for ability does not close any of the open paths, nor does it open any new ones.  
+**4. occupation and gender:** -||-    
+**5. occupation and ability:** Adjusting for occupation opens a new non-causal path between G and D. Adjusting for ability does not close nor open any paths in this case.  
+**6. gender and ability:** Both direct and indirect effects of D on W stay open, the third, non-causal path D <- G -> O -> W is closed by controlling for gender.   
+**7. all three:** Same as the previous case, but adjusting for occupation now closes the causal path between D and W through O, so the resulting effect of D on W would be lower.   
+
+<br/><br/>
+
+<center> $\huge \text{"Figures are great,}$
+         $\huge \text{everyone should do that."}$ </center>
+  
+[$\text{-- L. Lafférs, 1.12.2022, 17:08, MT205}$]{style="float:right"}  
+
+<br/><br/>
 
 **Task**: Assume that discrimination variable is binary and propose an estimator for (total) average treatment
 effect of discrimination on wages.  
--- Given that by controlling for occupation and ability, we are able to recover both the direct and indirect effect of discrimination on wages, we propose a linear model with OLS estimator, while controlling for occupation and ability. Logit?????? 
+-- Given that by adjusting for occupation and ability, we are able to recover both the direct and indirect effect of discrimination on wages, we propose a linear model with OLS estimator, while controlling for occupation and ability, of the form
+$$W = \beta_0 + \beta_1G + \beta_2 A + \beta_3 D + \varepsilon$$
 
 **Task**: Complement your analysis of $G_3$ with a small simulation study. Convince the reader that the estimator
 that you proposed is able to recover the true (total) average treatment effect of discrimination on
 wages. Make any reasonable simplifications in order to illustrate your point.  
 
 ```{r estimator}
-set.seed(666)
+set.seed(2312)
+# Gender: 0 - men, 1 - women
 gender <- rbinom(1000, 1, 0.5)
+# Discrimination: 0 - no discrimination, 1 - discrimination
+# Discrimination is affected by gender
 discrimination <- gender + rnorm(1000, 0, 0.2)
 discrimination <- ifelse(discrimination >= 0.2, 1, 0)
-summary(lm(discrimination ~ gender))
 
 ability <- rnorm(1000)
+# Occupation is affected by ability, gender and discrimination
 occupation <- 1.5*gender + discrimination + 2*ability + rnorm(1000, 0, 0.2)
+# Wages are affected by discrimination, occupation and ability 
 wages <- 3*ability + 2*discrimination + 6*occupation + rnorm(1000, 0, 0.2)
-
-summary(lm(wages ~ discrimination + gender + ability))
 ```
 
+What we now expect is to get the coefficient $\beta_3$ around 8 (2\*discrimination + 6\*occupation), where occupation is 1\*discrimination + others.
+```{r modelres}
+summary(lm(wages ~ gender + ability + discrimination))
+```
 
-<center> $\huge \text{"This is depressing, but that's the situation."}$ </center>
+The reasonable simplification:  
+<br/><br/>
+<center> $\huge \text{"You have to get used to it just by looking at it."}$ </center>
   
-[$\text{-- L. Lafférs, 10.11.2022, 16:32, MT205}$]{style="float:right"}  
+[$\text{-- L. Lafférs, 10.11.2022, 14:11, MT205}$]{style="float:right"}  
 
-## **2 Selection on Observables**  
+<br/><br/>
+<br/><br/>
+
+    
+## [**2 Selection on Observables**]{style="color:darkred"}
 Consider the following hypothetical situation. We have a population of 10 individuals and we happen to know
 both their contrafactual earnings: if they go to job training programme $(D = 1)$ they will receive $Y(1)$. Or if
 they do not participate in the job training programme $(D = 0)$ they will get $Y(0)$. We also have information
 on the different background they have: some individuals come from cities $(X = 1)$ while others from rural
 areas $(X = 0)$.
 
+```{r task2table, echo = FALSE, message=FALSE}
+library(huxtable)
+dat <- matrix(c(20,19,1,1,
+                23,21,1,1,
+                36,20,0,1,
+                43,19,0,1,
+                19,19,0,1,
+                23,55,0,0,
+                26,41,1,0,
+                21,21,1,0,
+                33,37,0,0,
+                16,17,1,0),
+              byrow=T, ncol=4)
+colnames(dat) <- c("Y1","Y0","D","X")
+dat <- as.data.frame(dat)
+dat
+```
+
+**Tasks:**  
+**(1a) What is the true average treatment effect (ATE) of job training programme on earnings?**  
+
+$ATE = E[Y(1) - Y(0)]$
+```{r ate}
+ATE <- (mean(dat$Y1) - mean(dat$Y0))
+ATE
+```
+
+-- People who went through the job training earn less by -0.9 on average.  
+
+**(1b) What is the true average treatment effect on the treated (ATT) of job training programme on earnings?**  
+
+$ATT = E[Y(1)-Y(0) | D=1]$
+```{r ATT}
+ATT <- mean(dat$Y1[dat$D==1]) - mean(dat$Y0[dat$D==1])
+ATT
+```
+
+-- People who went through the job training would have earned more on average if they hadn't attended the training.  
+
+**(1c) What is the true average treatment effect on the untreated (ATU) of job training programme on
+earnings?**  
+
+$ATU = E[Y(1)-Y(0) | D=0]$
+```{r ATU}
+ATU <- mean(dat$Y1[dat$D==0]) - mean(dat$Y0[dat$D==0])
+ATU
+```
+
+-- People who didn't go through the job training would have earned more on average if they attended the training.
+
+**(1d) What is the true average treatment effect on the treated of job training programme on earnings for
+those from cities?**  
+
+$ATT_{city} = E[Y(1)-Y(0) | D=1, X=1]$
+```{r ATT2}
+ATT1 <- mean(dat$Y1[dat$D==1 & dat$X == 1]) - mean(dat$Y0[dat$D==1 & dat$X == 1])
+ATT1
+```  
+
+-- Sign is different than general ATT.
+
+
+**(1e) What is the true average treatment effect on the treated of job training programme on earnings for
+those from rural areas?**  
+
+$ATT_{rural} = E[Y(1)-Y(0) | D=1, X=0]$
+```{r ATT 3}
+ATT2 <- mean(dat$Y1[dat$D==1 & dat$X == 0]) - mean(dat$Y0[dat$D==1 & dat$X == 0])
+ATT2
+```
+
+-- The effect is higher in absolute value than general ATT. 
+
+**(1f) Suppose that you can persuade every person to either attend the training or not based on what is more
+beneficial for her/him in terms of earnings. What would be the average effect of such ideal intervention?**  
+```{r intervention}
+dat_int <- dat
+# intervention -- those for whom Y(1) >= Y(0) go through the training 
+dat_int$D <- ifelse(dat_int$Y1 >= dat_int$Y0, 1, 0) 
+
+# True realized Y's without intervention
+true_y <- ifelse(dat$D == 1, dat$Y1, dat$Y0)
+
+# Realized Y's with intervention
+true_y1 <- ifelse(dat_int$D ==1, dat_int$Y1, dat_int$Y0)
+
+# Difference in means
+mean(true_y1) - mean(true_y)
+```
+
+-- After the intervention, people would on average earn more by 5.6.
+
+**(2a) Calculate unadjusted differences in mean observed outcomes job training participants (D = 1) and
+non-participants (D = 0).**  
+```{r mean_dif}
+mean(dat$Y1[dat$D == 1]) - mean(dat$Y0[dat$D == 0])
+```  
+
+**(2b) During the lecture, we have seen the following decomposition:**  
+$\quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \small ATT$  
+$E[Y |D = 1] − E[Y |D = 0] = \overbrace{E[Y(1) | D = 1] − E[Y(0) | D = 1]} +$ 
+$\underbrace{E[Y (0)|D = 1] − E[Y (0)|D = 0]}$  
+$\quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \small \text{Selection bias}$  
+**Calculate these quantities and confirm that this equation holds for our 10 individuals.**  
+```{r equat1}
+selection_bias <- mean(dat$Y0[dat$D == 1]) - mean(dat$Y0[dat$D == 0])
+mean(dat$Y1[dat$D == 1]) - mean(dat$Y0[dat$D == 0]) == ATT + selection_bias
+```
+
+**(2c) We have also seen this way of decomposing the observe differences** $E[Y | D = 1] − E[Y | D = 0]$:
+
+**Calculate these quantities and confirm that this equation holds for our 10 individuals.**
+```{r equat2}
+prob_D0 <- length(dat$D[dat$D == 0])/length(dat$D)
+left <- mean(dat$Y1[dat$D == 1]) - mean(dat$Y0[dat$D == 0])
+
+# float imprecision results in false, need to round the right side
+right <- round((ATE + selection_bias + prob_D0*(ATT - ATU)), 1)
+
+left == right
+```
+
+**(2d) Based on all these results, discuss if selection-on-observables was a valid assumption to make.**  
+Selection on observables would be a valid assumption if:
+
+$E[Y(0)|D = 1, X = 1] = E[Y(0)|D = 0, X = 1]$ and $E[Y(0)|D = 1, X = 0] = E[Y(0)|D = 0, X = 0]$.
+
+However, from our data we can see that:
+
+```{r selection}
+mean(dat$Y0[dat$D == 1 & dat$X == 1]) - mean(dat$Y0[dat$D == 0 & dat$X == 1])
+mean(dat$Y0[dat$D == 1 & dat$X == 0]) - mean(dat$Y0[dat$D == 0 & dat$X == 0])
+
+mean(dat$Y1[dat$D == 1 & dat$X == 1]) - mean(dat$Y1[dat$D == 0 & dat$X == 1])
+mean(dat$Y1[dat$D == 1 & dat$X == 0]) - mean(dat$Y1[dat$D == 0 & dat$X == 0])
+```
+
+which means that we are most likely missing some other important variables (e.g., ability) to adjust for. 
+
+<br/><br/>
+<center> $\huge \text{"This is depressing, but that's the situation."}$ </center>
+  
+[$\text{-- L. Lafférs, 10.11.2022, 16:32, MT205}$]{style="float:right"}  
+  
+<br/><br/>
+<br/><br/>
+
+## [**3 Replication**]{style="color:darkgreen"} 
+
+We decided to replicate the paper from Joshua D. Angrist and Alan B. Krueger from 1991: **Does compulsory school attendance affect schooling and earnings?**  
+(Original paper available at https://www.jstor.org/stable/pdf/2937954.pdf.)  
+
+The purpose of this paper was to estimate the effect of veterans benefits on schooling completed since entering the military and on subsequent earnings for veterans who served in the Vietnam era and in the first years of the All-Volunteer Forces (AVF). Angrist's and Krueger's empirical analysis used data on veterans from the Census Bureau's 1987 Survey of Veterans (SOV), which reports information on earnings in 1986, program usage, and the characteristics of veterans before and after their entry into the military.  
+
+Note: As we later discovered, the available data from Joshua Angrist's data archive provided information only for the cohort born between 1930-1939 (329,509 men) and was missing various covariates used in their paper. Nevertheless, information on year of birth, quarter of birth, years of education and wages was available, so it was possible to reproduce the main figures and result.
+
+<br/><br/>
+<center> $\huge \text{"That's life."}$ </center>
+  
+[$\text{-- L. Lafférs, 1.12.2022, 17:05, MT205}$]{style="float:right"}  
+<br/><br/>
+
+The main motivation behind this paper was that students who were born early in the 
+calendar year were typically older when they entered school than children born late in the year. Angrist and Krueger explain that his pattern arised because most school districts do not admit students to first grade unless they attain age six by January 1 of the academic year in which they enter school. Consequently, students who were born in the beginning of the year were older when they started school than students who were born near the end of the year. Because children born in the first quarter of the year entered school at an older age, they attained the legal dropout age after having attended school for a shorter period of time than those born near the end of the year. Following figure (replicated Figure I from Angrist and Krueger) documents the relationship between education and season of birth for men born 1930-1939. The figure depicts the average years of completed schooling by quarter and year of birth.  
+```{r fig1, echo=FALSE}
+load("asciiqob.RData")
+
+x %>%
+  group_by(year_of_birth, quarter_of_birth) %>%
+  summarise(education = mean(education), .groups = "drop") %>%
+  mutate(xcoord = year_of_birth + 0.25*(quarter_of_birth-1)) %>%
+  ggplot(aes(x = xcoord, y = education)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_text(aes(label = quarter_of_birth), nudge_y = -0.04) +
+  scale_x_continuous("Year of birth") +
+  scale_y_continuous("Years of education") +
+  theme_bw()
+```
+  
+A close examination of the plots indicates that there is a small but persistent pattern in the average number of years of completed education by quarter of birth. Average education is generally higher for individuals born near the end of the year than for individuals born early in the year. Furthermore, men born in the fourth quarter of the year tend to have even more education than men born in the beginning of the following year.  
+
+To further examine the seasonal pattern in education, Angrist and Krueger remove the trend in years of education across cohorts by substracting a simple moving average of the surrounding birth cohort's average education. For each quarter they define a two-period, two-sided moving average, MA(+2,-2), as the average education of men born in the two preceding and two succeeding quarters. 
+Following figure (Figure IV in Angrist and Krueger) is not reproduced exactly, possibly because a slightly different computation of the moving average by R, or by some slight differences in the data (Angrist and Krueger had 312,718 data points in their cohort, while our dataset consisted of 329,509 observations).
+
+```{r fig4, echo = FALSE, warning=FALSE}
+x1 <- x %>%
+  group_by(year_of_birth, quarter_of_birth) %>%
+  summarise(education = mean(education), .groups = "drop")
+
+x.ma <- rollmean(x1$education, 3, fill = NA, align = "right")
+
+# Figure 4
+x %>%
+  group_by(year_of_birth, quarter_of_birth) %>%
+  summarise(education = mean(education), .groups = "drop") %>%
+  mutate(xcoord = year_of_birth + 0.25*(quarter_of_birth-1), ma = x.ma) %>%
+  ggplot(aes(x = xcoord, y = education - ma)) +
+  geom_line(aes(y=0)) +
+  labs(fill = "Quarter of birth") +
+  geom_col(aes(fill = factor(quarter_of_birth))) +
+  geom_text(aes(label = quarter_of_birth), nudge_y = 0.01,) +
+  scale_x_continuous("Year of birth") +
+  scale_y_continuous("Schooling differential", limits = c(-0.2, 0.2)) +
+  theme_bw()
+```
+
+<br/><br/>
+<center> $\huge \text{"I am just masking my incompetence}$
+         $\huge \text{by making it colorful."}$ </center>
+  
+[$\text{-- L. Lafférs, 2.12.2022, 10:37, MT205}$]{style="float:right"}  
+
+<br/><br/>
+<br/><br/>
+
+Replication of Table I from Angrist and Krueger -- mean education for cohort 1930-1939 and the effect of quarter of birth on years of schooling. Although the coefficient are slightly different in our model, the overall results are almost the same as in the paper. Mean years of education of the 1930-1939 cohort reported by Angrist and Krueger are 12.79, our results show 12.77.
+
+```{r meaneduc}
+mean(x$education)
+```
+
+The relative quarter-of-birth effect on total years of education, with standard errors in parentheses, reported by the authors are -0.124 (0.017) for Q1, -0.086 (0.017) for Q2 and -0.015 (0.016) for Q3, while using Q4 as a reference level. The interpretation of this result is that compared to men born in Q4, those born in Q1 earn less by 0.124. Analogically for men born in Q2 and Q3. 
+```{r tab1, echo=FALSE}
+# Table 1
+x$quarter_of_birth1 <- relevel(factor(x$quarter_of_birth), ref = 4)
+summary(lm(education ~ factor(quarter_of_birth1), x))
+```
+
+Our results show similar coefficients with very similar standard errors. The F-statistic (34), testing the hypothesis that the quarter-of-birth dummies jointly have no effect, is also close to the authors' (25). Unfortunately, due to lack of available data, we were not able to replicate the rest of the results from Table I. 
+
+
+Second part of the paper by Angrist and Krueger deals with the question whether the small differences in education for men born in different months of the year translate into differences in earnings. The following figure is a replication of Figure V from the original paper, but only for the available cohort (1930-1939).  
+```{r fig5, echo = FALSE}
+# Figure 5
+x %>%
+  group_by(year_of_birth, quarter_of_birth) %>%
+  summarise(log_weekly_wage = mean(log_weekly_wage), .groups = "drop") %>%
+  mutate(xcoord = year_of_birth + 0.25*(quarter_of_birth-1)) %>%
+  ggplot(aes(x = xcoord, y = log_weekly_wage)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_text(aes(label = quarter_of_birth), nudge_y = 0.0015, nudge_x = 0.1) +
+  scale_x_continuous("Year of birth") +
+  scale_y_continuous("Log Weekly Earnings") +
+  theme_bw()
+```
+
+This figure shows that men born in the first quarter of the year, who, on average, have lower education, also tend to earn slightly less per week than men born in surrounding months. Angrist and Krueger highlight the importance of the flatness of this earnings profile because quarter of birth is naturally correlated with age: men born in the beginning of the year are older than those born at the end of the year, and will have higher earnings if they are on the upward sloping portion of the age-earnings profile. 
+
+To replicate the second part of the paper, we used OLS and IV regressions, while using the quarter of birth as an instrumental variable for education. The resulting returns to education can be found in the following model summary:
+```{r model2, echo=FALSE}
+ols <- lm(log_weekly_wage ~ education + year_of_birth, data = x)
+summary(ols)
+
+iv <- ivreg(log_weekly_wage ~ education + year_of_birth | quarter_of_birth + year_of_birth*quarter_of_birth + year_of_birth, data = x)
+summary(iv)
+```
+
+The IV regression estimate yields a coefficient of 0.094, while the coefficient reported in Angrist and Krueger is 0.089. The standard errors are very similar. The OLS estimate is also similar to the authors' results and to the IV estimate.
+Again, only one part of one table is replicated due to the lack of data.
+
+By reproducing even a small fraction of Angrist and Krueger's original paper, we arrived at the same conclusion: students who are compelled to attend school longer by compulsory schooling laws earn higher wages, possibly as a result of their extra schooling.
+
+<br/><br/>
 
 <center> $\huge \text{"You should be laughing by now,}$
-         $\huge \text{but I understand that you're tired."}$ </center>
+         $\huge \text{but I understand that you're tired."}$  
+         $\small \text{We are, too.}$</center>
   
 [$\text{-- L. Lafférs, 10.11.2022, 17:15, MT205}$]{style="float:right"}  
+
+<br/><br/>
+<br/><br/>
